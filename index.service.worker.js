@@ -51,7 +51,7 @@ self.addEventListener('fetch', (event) => {
 // Incrementing CACHE_VERSION will kick off the install event and force
 // previously cached resources to be updated from the network.
 /** @type {string} */
-const CACHE_VERSION = '1791991248|49040817';
+const CACHE_VERSION = '1791994770|31343291';
 /** @type {string} */
 const CACHE_PREFIX = 'BioVerse-sw-cache-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
