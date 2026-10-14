@@ -1,10 +1,57 @@
+// BioVerse: lesson packs and videos stay on the phone after the first download (Cache Storage; read from disk only
+// when a lesson opens, never loaded at start-up). Their URLs carry ?v=<content hash>: a changed lesson is fetched
+// again and the older copy of that file is deleted. The lesson list is network-first with the cached copy offline.
+const BV_DATA_CACHE = 'BioVerse-lessons-v1';
+// take over at once (first launch included), so even the first lesson download is kept
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', (event) => {
+	const req = event.request;
+	if (req.method !== 'GET') return;
+	const url = new URL(req.url);
+	if (url.origin !== self.location.origin) return;
+	const path = url.pathname;
+	if (/\/lessons\/manifest\.json$/.test(path)) {
+		event.respondWith((async () => {
+			const cache = await caches.open(BV_DATA_CACHE);
+			try {
+				const res = await fetch(req, { cache: 'no-store' });
+				if (res.ok) event.waitUntil(cache.put(path, res.clone()));
+				return res;
+			} catch (e) {
+				const hit = await cache.match(path);
+				if (hit) return hit;
+				throw e;
+			}
+		})());
+		return;
+	}
+	if (/\/(lessons\/[^/]+\.pck|videos\/[^/]+\.ogv)$/.test(path)) {
+		event.respondWith((async () => {
+			const cache = await caches.open(BV_DATA_CACHE);
+			const hit = await cache.match(req.url);
+			if (hit) return hit;
+			const res = await fetch(req);
+			if (res.status === 200) {
+				const copy = res.clone();   // before the app starts reading the body
+				event.waitUntil((async () => {
+					const keys = await cache.keys();
+					await Promise.all(keys.filter((k) => new URL(k.url).pathname === path && k.url !== req.url).map((k) => cache.delete(k)));
+					await cache.put(req.url, copy);
+				})().catch((e) => console.error('BioVerse cache: ' + e)));
+			}
+			return res;
+		})());
+	}
+});
+
 // This service worker is required to expose an exported Godot project as a
 // Progressive Web App. It provides an offline fallback page telling the user
 // that they need an Internet connection to run the project if desired.
 // Incrementing CACHE_VERSION will kick off the install event and force
 // previously cached resources to be updated from the network.
 /** @type {string} */
-const CACHE_VERSION = '1791820357|31888009';
+const CACHE_VERSION = '1791972518|51650259';
 /** @type {string} */
 const CACHE_PREFIX = 'BioVerse-sw-cache-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
